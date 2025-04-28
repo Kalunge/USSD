@@ -2,24 +2,30 @@ package com.ussd.usddapp.controler;
 
 
 import com.ussd.usddapp.dto.*;
+import com.ussd.usddapp.dto.Transaction;
 import com.ussd.usddapp.repository.*;
 import com.ussd.usddapp.service.*;
 import com.ussd.usddapp.util.*;
+import jakarta.transaction.*;
 import lombok.*;
 import lombok.extern.slf4j.*;
+import org.springframework.cache.annotation.*;
 import org.springframework.web.bind.annotation.*;
-import java.util.*;
 
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@EnableCaching
 public class UssdController {
+
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
     private final SessionService sessionService;
     private final MenuService menuService;
+    private final UserService userService;
 
     @PostMapping(value = "/ussd", consumes = "application/x-www-form-urlencoded")
+    @Transactional
     public String handleUssd(
             @RequestParam("sessionId") String sessionId,
             @RequestParam("phoneNumber") String phoneNumber,
@@ -46,8 +52,8 @@ public class UssdController {
         String state = sessionService.getState(sessionId);
         log.debug("Current state: {}, Input level: {}, Latest input: {}", state, inputLevel, latestInput);
 
-        // Handle the initial request (text is empty)
-        if (text.isEmpty()) {
+        // Handle the initial request (text is empty) or if state is START
+        if (text.isEmpty() || state.equals("START")) {
             sessionService.setState(sessionId, "MENU");
             log.debug("Transition to MENU");
             return menuService.getMainMenu();
@@ -60,7 +66,9 @@ public class UssdController {
                     case "1":
                         sessionService.setState(sessionId, "CHECK_BALANCE");
                         log.debug("Transition to CHECK_BALANCE");
-                        return menuService.getBalanceMessage(user.getBalance());
+                        double balance = userService.getUserBalance(phoneNumber);
+                        log.info("Balance retrieved for display: phoneNumber={}, balance={}", phoneNumber, balance);
+                        return menuService.getBalanceMessage(balance);
                     case "2":
                         sessionService.setState(sessionId, "TRANSFER_AMOUNT");
                         log.debug("Transition to TRANSFER_AMOUNT");
@@ -79,7 +87,9 @@ public class UssdController {
                     case "1":
                         sessionService.setState(sessionId, "CHECK_BALANCE");
                         log.debug("Transition to CHECK_BALANCE");
-                        return menuService.getBalanceMessage(user.getBalance());
+                        double balance = userService.getUserBalance(phoneNumber);
+                        log.info("Balance retrieved for display: phoneNumber={}, balance={}", phoneNumber, balance);
+                        return menuService.getBalanceMessage(balance);
                     case "2":
                         sessionService.setState(sessionId, "TRANSFER_AMOUNT");
                         log.debug("Transition to TRANSFER_AMOUNT");
@@ -93,39 +103,55 @@ public class UssdController {
                 }
             } else if (state.equals("TRANSFER_AMOUNT")) {
                 try {
+                    log.debug("Processing TRANSFER_AMOUNT: parsing amount={}", latestInput);
                     double amount = Double.parseDouble(latestInput);
+                    log.debug("Amount parsed successfully: amount={}", amount);
                     sessionService.setState(sessionId, "TRANSFER_PHONE");
+                    log.debug("Setting data for amount: sessionId={}, amount={}", sessionId, amount);
                     sessionService.setData(sessionId, "amount", String.valueOf(amount));
                     log.debug("Amount: {}, Transition to TRANSFER_PHONE", amount);
-                    return menuService.getTransferPhonePrompt();
+                    String response = menuService.getTransferPhonePrompt();
+                    log.debug("Returning response for TRANSFER_PHONE: {}", response);
+                    return response;
                 } catch (NumberFormatException e) {
-                    sessionService.clearSession(sessionId);
                     log.warn("Invalid amount entered: {}", latestInput);
+                    sessionService.clearSession(sessionId);
                     return menuService.getInvalidAmountMessage();
                 }
             } else if (state.equals("TRANSFER_PHONE")) {
+                log.debug("Processing TRANSFER_PHONE: retrieving amount for sessionId={}", sessionId);
                 double amount = Double.parseDouble(sessionService.getData(sessionId, "amount", "0"));
-                double balance = user.getBalance();
+                log.debug("Amount retrieved: amount={}", amount);
+                double balance = user.getBalance(); // Use the loaded user entity
+                log.debug("Checking balance: balance={}, amount={}", balance, amount);
                 if (amount <= balance) {
-                    user.setBalance(balance - amount);
-                    userRepository.save(user);
+                    double newBalance = balance - amount;
+                    user.setBalance(newBalance);
 
+                    log.debug("Updating balance: phoneNumber={}, newBalance={}", phoneNumber, newBalance);
+                    userService.updateUserBalance(phoneNumber, newBalance);
+
+                    log.debug("Saving transaction: amount={}, recipient={}", amount, latestInput);
                     Transaction transaction = new Transaction();
                     transaction.setUser(user);
                     transaction.setAmount(amount);
                     transaction.setRecipientPhone(latestInput);
                     transactionRepository.save(transaction);
 
+                    log.debug("Clearing session after transfer: sessionId={}", sessionId);
                     sessionService.clearSession(sessionId);
                     log.info("Transfer successful: amount={}, recipient={}, new balance={}", amount, latestInput, user.getBalance());
-                    return menuService.getTransferSuccessMessage(amount, latestInput);
+                    String response = menuService.getTransferSuccessMessage(amount, latestInput);
+                    log.debug("Returning transfer success response: {}", response);
+                    return response;
                 } else {
-                    sessionService.clearSession(sessionId);
                     log.warn("Insufficient funds: amount={}, balance={}", amount, balance);
+                    sessionService.clearSession(sessionId);
                     return menuService.getInsufficientFundsMessage();
                 }
             } else {
                 log.error("Invalid state: {}", state);
+                sessionService.clearSession(sessionId);
                 return menuService.getErrorMessage();
             }
         } catch (Exception e) {
@@ -133,5 +159,12 @@ public class UssdController {
             sessionService.clearSession(sessionId);
             return menuService.getErrorMessage();
         }
+    }
+
+    @GetMapping("/test-cache/{phoneNumber}")
+    public String testCache(@PathVariable String phoneNumber) {
+        log.info("Testing cache for phoneNumber={}", phoneNumber);
+        double balance = userService.getUserBalance(phoneNumber);
+        return "Balance for " + phoneNumber + ": " + balance;
     }
 }

@@ -6,6 +6,13 @@ spring:
     username: root
     password: password
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 5000 # 5 seconds
+      maximum-pool-size: 20 # Increased to handle more concurrent requests
+      minimum-idle: 5 # Increased to keep more idle connections ready
+      idle-timeout: 30000 # 30 seconds
+      max-lifetime: 1800000 # 30 minutes
+      leak-detection-threshold: 20000 # Log if a connection is held for more than 60 seconds
   jpa:
     hibernate:
       ddl-auto: update
@@ -13,7 +20,35 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000 # 2 seconds
+  cache:
+    type: redis
+    redis:
+      time-to-live: PT60S
+      use-key-prefix: true
+      key-prefix: "cache:"
+      cache-null-values: false
+  server:
+    tomcat:
+      connection-timeout: 10000 # 10 seconds
+      threads:
+        max: 50 # Increased to handle more concurrent requests
+        min-spare: 10
+
 logging:
   level:
     org.springframework: INFO
-    com.example.ussdproject: DEBUG
+    org.springframework.cache: DEBUG
+    org.springframework.data.redis: DEBUG
+    com.ussd.usddapp: DEBUG
+    com.zaxxer.hikari: DEBUG # Added to monitor connection pool
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
