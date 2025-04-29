@@ -31,14 +31,13 @@ public class UssdController {
             @RequestParam("phoneNumber") String phoneNumber,
             @RequestParam(value = "text", required = false, defaultValue = "") String text) {
 
-        // Log immediately upon receiving the request
         log.debug("Received USSD request: sessionId={}, phoneNumber={}, text={}", sessionId, phoneNumber, text);
 
         // Check if session has expired and reset if necessary
         String state = sessionService.getState(sessionId);
         if (state == null && !text.isEmpty()) {
             log.debug("Session likely expired for sessionId={}, resetting to START", sessionId);
-            sessionService.clearSession(sessionId); // Clear any stale data
+            sessionService.clearSession(sessionId);
             state = "START";
         }
 
@@ -63,16 +62,57 @@ public class UssdController {
 
         // Handle the initial request (text is empty) or if state is START
         if (text.isEmpty() || state.equals("START")) {
-            sessionService.setState(sessionId, "MENU");
-            log.debug("Transition to MENU");
-            String response = menuService.getMainMenu();
-            log.debug("Returning menu response: {}", response);
-            return response;
+            if (user.hasPassword()) {
+                sessionService.setState(sessionId, "ENTER_PIN");
+                log.debug("User has PIN, transitioning to ENTER_PIN");
+                return menuService.getEnterPinPrompt();
+            } else {
+                sessionService.setState(sessionId, "SET_PIN");
+                log.debug("User has no PIN, transitioning to SET_PIN");
+                return menuService.getSetPinPrompt();
+            }
         }
 
         // Process based on state and input level
         try {
-            if (state.equals("MENU")) {
+            if (state.equals("ENTER_PIN")) {
+                if (user.isPasswordValid(latestInput)) {
+                    sessionService.setState(sessionId, "MENU");
+                    log.debug("PIN validated, transitioning to MENU");
+                    String response = menuService.getMainMenu();
+                    log.debug("Returning menu response: {}", response);
+                    return response;
+                } else {
+                    log.debug("Invalid PIN entered: {}", latestInput);
+                    return menuService.getInvalidPinMessage();
+                }
+            } else if (state.equals("SET_PIN")) {
+                if (latestInput.length() != 4 || !latestInput.matches("\\d{4}")) {
+                    log.debug("Invalid PIN format: {}", latestInput);
+                    return "CON Invalid PIN. Please enter a 4-digit number:";
+                }
+                sessionService.setData(sessionId, "temp_pin", latestInput);
+                sessionService.setState(sessionId, "CONFIRM_PIN");
+                log.debug("PIN entered, transitioning to CONFIRM_PIN");
+                return menuService.getConfirmPinPrompt();
+            } else if (state.equals("CONFIRM_PIN")) {
+                String tempPin = sessionService.getData(sessionId, "temp_pin", "");
+                if (latestInput.equals(tempPin)) {
+                    user.setPassword(latestInput);
+                    userRepository.save(user);
+                    sessionService.clearSession(sessionId); // Clear temp data
+                    sessionService.setState(sessionId, "MENU");
+                    log.debug("PIN confirmed and set, transitioning to MENU");
+                    String response = menuService.getPinSetSuccessMessage() + "\n" + menuService.getMainMenu();
+                    log.debug("Returning PIN set success and menu: {}", response);
+                    return response;
+                } else {
+                    sessionService.clearSession(sessionId); // Clear temp data
+                    sessionService.setState(sessionId, "SET_PIN");
+                    log.debug("PIN confirmation failed, transitioning back to SET_PIN");
+                    return menuService.getPinMismatchMessage();
+                }
+            } else if (state.equals("MENU")) {
                 switch (latestInput) {
                     case "1":
                         sessionService.setState(sessionId, "CHECK_BALANCE");
@@ -133,7 +173,7 @@ public class UssdController {
                 log.debug("Processing TRANSFER_PHONE: retrieving amount for sessionId={}", sessionId);
                 double amount = Double.parseDouble(sessionService.getData(sessionId, "amount", "0"));
                 log.debug("Amount retrieved: amount={}", amount);
-                double balance = user.getBalance(); // Use the loaded user entity
+                double balance = user.getBalance();
                 log.debug("Checking balance: balance={}, amount={}", balance, amount);
                 if (amount <= balance) {
                     double newBalance = balance - amount;

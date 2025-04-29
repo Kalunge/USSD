@@ -15,4 +15,15 @@ public class User {
 
     @Column(nullable = false)
     private Double balance = 100.0;
+
+    @Column(name = "password", length = 4)
+    private String password;
+
+    public boolean hasPassword() {
+        return password != null && !password.isEmpty();
+    }
+
+    public boolean isPasswordValid(String inputPin) {
+        return password != null && password.equals(inputPin);
+    }
 }

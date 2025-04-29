@@ -7,7 +7,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -20,8 +19,8 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable()) // Disable CSRF for API requests
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api").authenticated()
-                        .requestMatchers("/test-cache/**").authenticated() // Secure /test-cache endpoint
+                        .requestMatchers("/api/**").authenticated() // Require authentication for /api/**
+                        .requestMatchers("/test-cache/**").authenticated() // Require authentication for /test-cache/**
                         .anyRequest().permitAll() // Allow other endpoints (e.g., /actuator/health)
                 )
                 .addFilterBefore(new ApiKeyAuthenticationFilter(apiKey), UsernamePasswordAuthenticationFilter.class);
