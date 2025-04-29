@@ -31,9 +31,19 @@ public class UssdController {
             @RequestParam("phoneNumber") String phoneNumber,
             @RequestParam(value = "text", required = false, defaultValue = "") String text) {
 
-        log.debug("Request: sessionId={}, phoneNumber={}, text={}", sessionId, phoneNumber, text);
+        // Log immediately upon receiving the request
+        log.debug("Received USSD request: sessionId={}, phoneNumber={}, text={}", sessionId, phoneNumber, text);
+
+        // Check if session has expired and reset if necessary
+        String state = sessionService.getState(sessionId);
+        if (state == null && !text.isEmpty()) {
+            log.debug("Session likely expired for sessionId={}, resetting to START", sessionId);
+            sessionService.clearSession(sessionId); // Clear any stale data
+            state = "START";
+        }
 
         // Initialize user if not exists
+        log.debug("Fetching user for phoneNumber={}", phoneNumber);
         User user = userRepository.findByPhoneNumber(phoneNumber);
         if (user == null) {
             user = new User();
@@ -48,15 +58,16 @@ public class UssdController {
         String latestInput = inputs.length > 0 ? inputs[inputs.length - 1] : "";
         int inputLevel = inputs.length;
 
-        // Retrieve session state
-        String state = sessionService.getState(sessionId);
+        // Log the current state
         log.debug("Current state: {}, Input level: {}, Latest input: {}", state, inputLevel, latestInput);
 
         // Handle the initial request (text is empty) or if state is START
         if (text.isEmpty() || state.equals("START")) {
             sessionService.setState(sessionId, "MENU");
             log.debug("Transition to MENU");
-            return menuService.getMainMenu();
+            String response = menuService.getMainMenu();
+            log.debug("Returning menu response: {}", response);
+            return response;
         }
 
         // Process based on state and input level

@@ -1,6 +1,6 @@
 spring:
   application:
-    name: usddapp
+    name: ussdapp
   datasource:
     url: jdbc:mysql://localhost:3306/ussd_bank?useSSL=false&serverTimezone=UTC
     username: root
@@ -44,8 +44,11 @@ logging:
     org.springframework: INFO
     org.springframework.cache: DEBUG
     org.springframework.data.redis: DEBUG
-    com.ussd.usddapp: DEBUG
-    com.zaxxer.hikari: DEBUG # Added to monitor connection pool
+    com.ussd.ussdapp: DEBUG
+    com.zaxxer.hikari: DEBUG
+api:
+  key: your-secure-api-key-here
+
 
 management:
   endpoints:
