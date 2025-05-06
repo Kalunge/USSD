@@ -18,9 +18,8 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class UssdController {
-
-    private final DepositApi depositApi;
     private final AccountValidationApi accountValidationApi;
+    private final DepositApi depositApi;
 
     @Value("${api.key}")
     private String apiKey;
@@ -33,8 +32,7 @@ public class UssdController {
             @RequestParam("phoneNumber") String phoneNumber,
             @RequestParam(value = "text", required = false, defaultValue = "") String text) {
 
-        log.info("Received USSD request - sessionId: {}, serviceCode: {}, phoneNumber: {}, text: {}",
-                sessionId, phoneNumber, text);
+        log.info("Received USSD request - sessionId: {}, phoneNumber: {}, text: {}", sessionId, phoneNumber, text);
 
         UssdSession session = sessions.computeIfAbsent(sessionId, k -> new UssdSession());
         String userInput = text.trim().isEmpty() ? "" : text;
@@ -77,14 +75,38 @@ public class UssdController {
 
                         AccountValidationResponse validationResponse = accountValidationApi.validateAccount(validationRequest);
                         if ("0".equals(validationResponse.getStatus())) {
-                            response = "CON Account validated. Enter Amount";
-                            session.setState(UssdSession.State.ENTER_AMOUNT);
+                            session.setAccountValidationResponse(validationResponse);
+                            String accountName = validationResponse.getAccountDetails().split("\\^")[5]; // Extract name from accountDetails
+                            response = String.format(
+                                    "CON Confirm Account Details\nBank: KCB\nAccount Number: %s\nAccount Name: %s\n1. Confirm\n2. Cancel",
+                                    validationResponse.getAccountNumber(), accountName
+                            );
+                            session.setState(UssdSession.State.CONFIRM_ACCOUNT);
                         } else {
                             response = "END Invalid account. Session ended.";
                             sessions.remove(sessionId);
                         }
                     } else {
                         response = "END No account number provided. Session ended.";
+                        sessions.remove(sessionId);
+                    }
+                    break;
+
+                case CONFIRM_ACCOUNT:
+                    if (inputParts.length > 0) {
+                        String choice = inputParts[inputParts.length - 1];
+                        if ("1".equals(choice)) {
+                            response = "CON Enter Amount";
+                            session.setState(UssdSession.State.ENTER_AMOUNT);
+                        } else if ("2".equals(choice)) {
+                            response = "END Transaction canceled.";
+                            sessions.remove(sessionId);
+                        } else {
+                            response = "END Invalid option. Session ended.";
+                            sessions.remove(sessionId);
+                        }
+                    } else {
+                        response = "END No option selected. Session ended.";
                         sessions.remove(sessionId);
                     }
                     break;
@@ -155,10 +177,6 @@ public class UssdController {
             log.error("Error processing USSD request: {}", e.getMessage(), e);
             response = "END An error occurred. Please try again later.";
             sessions.remove(sessionId);
-        } catch (Exception e) {
-            log.error("Unexpected error: {}", e.getMessage(), e);
-            response = "END An unexpected error occurred. Please try again later.";
-            sessions.remove(sessionId);
         }
 
         log.info("Sending USSD response: {}", response);
@@ -167,43 +185,23 @@ public class UssdController {
 
     // Inner class to manage session state
     private static class UssdSession {
-        enum State {INIT, MENU, ENTER_ACCOUNT, ENTER_AMOUNT, ENTER_PIN}
+        enum State { INIT, MENU, ENTER_ACCOUNT, CONFIRM_ACCOUNT, ENTER_AMOUNT, ENTER_PIN }
 
         private State state = State.INIT;
         private String accountNumber;
         private double amount;
         private String pin;
+        private AccountValidationResponse accountValidationResponse;
 
-        public State getState() {
-            return state;
-        }
-
-        public void setState(State state) {
-            this.state = state;
-        }
-
-        public String getAccountNumber() {
-            return accountNumber;
-        }
-
-        public void setAccountNumber(String accountNumber) {
-            this.accountNumber = accountNumber;
-        }
-
-        public double getAmount() {
-            return amount;
-        }
-
-        public void setAmount(double amount) {
-            this.amount = amount;
-        }
-
-        public String getPin() {
-            return pin;
-        }
-
-        public void setPin(String pin) {
-            this.pin = pin;
-        }
+        public State getState() { return state; }
+        public void setState(State state) { this.state = state; }
+        public String getAccountNumber() { return accountNumber; }
+        public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+        public double getAmount() { return amount; }
+        public void setAmount(double amount) { this.amount = amount; }
+        public String getPin() { return pin; }
+        public void setPin(String pin) { this.pin = pin; }
+        public AccountValidationResponse getAccountValidationResponse() { return accountValidationResponse; }
+        public void setAccountValidationResponse(AccountValidationResponse response) { this.accountValidationResponse = response; }
     }
 }
