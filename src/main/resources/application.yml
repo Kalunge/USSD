@@ -39,6 +39,7 @@ spring:
         max: 50 # Increased to handle more concurrent requests
         min-spare: 10
 
+
 logging:
   level:
     org.springframework: INFO
@@ -47,7 +48,8 @@ logging:
     com.ussd.ussdapp: DEBUG
     com.zaxxer.hikari: DEBUG
 api:
-  key: your-secure-api-key-here
+  key: G&a9&zeB_q@L8zCTeAjyc+mj$Q#wjV6+
+  url: https://52.49.107.237:8110/api/v1/web
 
 
 management:

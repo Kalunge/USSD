@@ -15,4 +15,5 @@ public class DepositResponse {
     private String shopName;
     private String name;
     private String bankCode;
+    private String message;
 }
