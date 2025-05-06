@@ -28,6 +28,8 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	implementation ("org.springframework.boot:spring-boot-starter-data-redis")
+	implementation ("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation ("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 }
 
 tasks.withType<Test> {
