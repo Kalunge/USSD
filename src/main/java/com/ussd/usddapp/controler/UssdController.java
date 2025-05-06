@@ -2,40 +2,43 @@ package com.ussd.usddapp.controler;
 
 
 import com.ussd.usddapp.dto.*;
+
 import com.ussd.usddapp.request.*;
-import jakarta.servlet.http.*;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/ussd")
 @Slf4j
 @RequiredArgsConstructor
 public class UssdController {
+
+    private final DepositApi depositApi;
+    private final AccountValidationApi accountValidationApi;
 
     @Value("${api.key}")
     private String apiKey;
 
     private Map<String, UssdSession> sessions = new HashMap<>();
-    private final AccountValidationApi accountValidationApi;
-    private final DepositApi depositApi;
 
-    @PostMapping
-    public ResponseEntity<String> handleUssd(@RequestParam String sessionId,
-                                             @RequestParam String phoneNumber,
-                                             @RequestParam String text,
-                                             HttpServletRequest request) {
-        log.info("Received USSD request - sessionId: {}, phoneNumber: {}, text: {}", sessionId, phoneNumber, text);
+    @PostMapping(value = "/ussd", consumes = "application/x-www-form-urlencoded", produces = "text/plain")
+    public @ResponseBody String handleUssd(
+            @RequestParam("sessionId") String sessionId,
+            @RequestParam("phoneNumber") String phoneNumber,
+            @RequestParam(value = "text", required = false, defaultValue = "") String text) {
+
+        log.info("Received USSD request - sessionId: {}, serviceCode: {}, phoneNumber: {}, text: {}",
+                sessionId, phoneNumber, text);
 
         UssdSession session = sessions.computeIfAbsent(sessionId, k -> new UssdSession());
-        String userInput = text.trim();
+        String userInput = text.trim().isEmpty() ? "" : text;
+        String[] inputParts = userInput.split("\\*");
         String response;
 
         try {
@@ -46,7 +49,7 @@ public class UssdController {
                     break;
 
                 case MENU:
-                    if ("1".equals(userInput)) {
+                    if (inputParts.length > 0 && "1".equals(inputParts[0])) {
                         response = "CON Enter Account Number";
                         session.setState(UssdSession.State.ENTER_ACCOUNT);
                     } else {
@@ -56,64 +59,89 @@ public class UssdController {
                     break;
 
                 case ENTER_ACCOUNT:
-                    session.setAccountNumber(userInput);
-                    AccountValidationRequest validationRequest = new AccountValidationRequest();
-                    validationRequest.setAccount(userInput);
-                    validationRequest.setApiKey(apiKey);
-                    validationRequest.setBankCode("01");
-                    validationRequest.setTerminalID("BKN52191100305");
-                    validationRequest.setType("acc_validation");
-                    validationRequest.setVersion("1.1.10");
-                    validationRequest.setCountryID("1");
-                    validationRequest.setTerminalUserID("123678");
-                    validationRequest.setLocation("");
-                    validationRequest.setMerchantID("20");
+                    if (inputParts.length > 0) {
+                        String accountNumber = inputParts[inputParts.length - 1];
+                        session.setAccountNumber(accountNumber);
 
-                    AccountValidationResponse validationResponse = accountValidationApi.validateAccount(validationRequest);
-                    if ("0".equals(validationResponse.getStatus())) {
-                        response = "CON Account validated. Enter Amount";
-                        session.setState(UssdSession.State.ENTER_AMOUNT);
+                        AccountValidationRequest validationRequest = new AccountValidationRequest();
+                        validationRequest.setAccount(accountNumber);
+                        validationRequest.setApiKey(apiKey);
+                        validationRequest.setBankCode("01");
+                        validationRequest.setTerminalID("BKN52191100305");
+                        validationRequest.setType("acc_validation");
+                        validationRequest.setVersion("1.1.10");
+                        validationRequest.setCountryID("1");
+                        validationRequest.setTerminalUserID("123678");
+                        validationRequest.setLocation("");
+                        validationRequest.setMerchantID("20");
+
+                        AccountValidationResponse validationResponse = accountValidationApi.validateAccount(validationRequest);
+                        if ("0".equals(validationResponse.getStatus())) {
+                            response = "CON Account validated. Enter Amount";
+                            session.setState(UssdSession.State.ENTER_AMOUNT);
+                        } else {
+                            response = "END Invalid account. Session ended.";
+                            sessions.remove(sessionId);
+                        }
                     } else {
-                        response = "END Invalid account. Session ended.";
+                        response = "END No account number provided. Session ended.";
                         sessions.remove(sessionId);
                     }
                     break;
 
                 case ENTER_AMOUNT:
-                    session.setAmount(Double.parseDouble(userInput));
-                    response = "CON Enter 4-digit PIN";
-                    session.setState(UssdSession.State.ENTER_PIN);
+                    if (inputParts.length > 0) {
+                        try {
+                            double amount = Double.parseDouble(inputParts[inputParts.length - 1]);
+                            session.setAmount(amount);
+                            response = "CON Enter 4-digit PIN";
+                            session.setState(UssdSession.State.ENTER_PIN);
+                        } catch (NumberFormatException e) {
+                            response = "END Invalid amount. Session ended.";
+                            sessions.remove(sessionId);
+                        }
+                    } else {
+                        response = "END No amount provided. Session ended.";
+                        sessions.remove(sessionId);
+                    }
                     break;
 
                 case ENTER_PIN:
-                    if (userInput.matches("\\d{4}")) {
-                        session.setPin(userInput);
-                        DepositRequest depositRequest = new DepositRequest();
-                        depositRequest.setAccount1(session.getAccountNumber());
-                        depositRequest.setAmount(session.getAmount());
-                        depositRequest.setPassword(session.getPin());
-                        depositRequest.setApiKey(apiKey);
-                        depositRequest.setAccountName("User Name"); // Replace with actual name if available
-                        depositRequest.setTerminalUserID("323");
-                        depositRequest.setTerminalID("BKN52191100305");
-                        depositRequest.setVersion("1.1.10.");
-                        depositRequest.setRequestTime(System.currentTimeMillis());
-                        depositRequest.setNarration("USSD Deposit");
-                        depositRequest.setCountryID("2");
-                        depositRequest.setCustomerName("Test User");
-                        depositRequest.setLocation("");
-                        depositRequest.setStartTime(java.time.LocalDateTime.now().toString());
-                        depositRequest.setType("cash_deposit_cash_absent");
+                    if (inputParts.length > 0) {
+                        String pin = inputParts[inputParts.length - 1];
+                        if (pin.matches("\\d{4}")) {
+                            session.setPin(pin);
 
-                        DepositResponse depositResponse = depositApi.performDeposit(depositRequest);
-                        if ("0".equals(depositResponse.getStatus())) {
-                            response = "END Deposit successful. TnxCode: " + depositResponse.getTnxCode();
+                            DepositRequest depositRequest = new DepositRequest();
+                            depositRequest.setAccount1(session.getAccountNumber());
+                            depositRequest.setAmount(session.getAmount());
+                            depositRequest.setPassword(pin);
+                            depositRequest.setApiKey(apiKey);
+                            depositRequest.setAccountName("User Name"); // Replace with actual name if available
+                            depositRequest.setTerminalUserID("323");
+                            depositRequest.setTerminalID("BKN52191100305");
+                            depositRequest.setVersion("1.1.10.");
+                            depositRequest.setRequestTime(System.currentTimeMillis());
+                            depositRequest.setNarration("USSD Deposit");
+                            depositRequest.setCountryID("2");
+                            depositRequest.setCustomerName("Test User");
+                            depositRequest.setLocation("");
+                            depositRequest.setStartTime(java.time.LocalDateTime.now().toString());
+                            depositRequest.setType("cash_deposit_cash_absent");
+
+                            DepositResponse depositResponse = depositApi.performDeposit(depositRequest);
+                            if ("0".equals(depositResponse.getStatus())) {
+                                response = "END Deposit successful. TnxCode: " + depositResponse.getTnxCode();
+                            } else {
+                                response = "END Deposit failed. Status: " + depositResponse.getStatus();
+                            }
+                            sessions.remove(sessionId);
                         } else {
-                            response = "END Deposit failed. Status: " + depositResponse.getStatus();
+                            response = "END Invalid PIN. Must be 4 digits. Session ended.";
+                            sessions.remove(sessionId);
                         }
-                        sessions.remove(sessionId);
                     } else {
-                        response = "END Invalid PIN. Must be 4 digits. Session ended.";
+                        response = "END No PIN provided. Session ended.";
                         sessions.remove(sessionId);
                     }
                     break;
@@ -123,13 +151,18 @@ public class UssdController {
                     sessions.remove(sessionId);
                     break;
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("Error processing USSD request: {}", e.getMessage(), e);
             response = "END An error occurred. Please try again later.";
             sessions.remove(sessionId);
+        } catch (Exception e) {
+            log.error("Unexpected error: {}", e.getMessage(), e);
+            response = "END An unexpected error occurred. Please try again later.";
+            sessions.remove(sessionId);
         }
 
-        return ResponseEntity.ok(response);
+        log.info("Sending USSD response: {}", response);
+        return response;
     }
 
     // Inner class to manage session state
