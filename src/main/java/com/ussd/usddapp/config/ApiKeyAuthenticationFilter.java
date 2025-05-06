@@ -11,6 +11,7 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.*;
 
 @RequiredArgsConstructor
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
@@ -22,8 +23,17 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+
         String requestUri = request.getRequestURI();
-        if (requestUri.equals("/ussd")) {
+        List<String> allowedPaths = Arrays.asList("/ussd", "/safaricom/ussd", "/agent/ussd");
+
+        if (allowedPaths.contains(requestUri)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+
+        if (requestUri.equals("/safaricom/ussd")) {
             filterChain.doFilter(request, response);
             return;
         }
