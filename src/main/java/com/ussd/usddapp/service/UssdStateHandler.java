@@ -23,7 +23,7 @@ public class UssdStateHandler {
 
         switch (session.getState()) {
             case INIT:
-                response = "CON Welcome to Deposit Service\nSelect Bank:\n" +
+                response = "CON Welcome to Agency Banking\nSelect Bank:\n" +
                         "1. KCB\n2. ABSA\n3. COOP";
                 session.setState(UssdSession.State.SELECT_BANK);
                 break;
