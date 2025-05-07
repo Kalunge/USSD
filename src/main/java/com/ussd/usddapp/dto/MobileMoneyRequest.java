@@ -17,3 +17,5 @@ public class MobileMoneyRequest {
     private String type = "hustler_cash_withdrawal";
     private String apiKey;
 }
+
+

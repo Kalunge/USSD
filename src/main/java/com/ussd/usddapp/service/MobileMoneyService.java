@@ -12,10 +12,11 @@ import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class MobileMoneyService {
 
     private final MobileMoneyApi mobileMoneyApi;
+    private final MobileMoneyValidationApi mobileMoneyValidationApi;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String handleMobileMoneyOption(UssdSession session, String[] inputParts) {
         if (inputParts.length > 1) {
@@ -34,17 +35,29 @@ public class MobileMoneyService {
         return "CON Mobile Money Options:\n1. Deposit\n2. Withdraw";
     }
 
-    public String handlePhoneEntry(UssdSession session, String[] inputParts) {
+    public String handlePhoneEntry(UssdSession session, String[] inputParts, String apiKey) throws IOException {
         if (inputParts.length > 1) {
             String phone = inputParts[inputParts.length - 1];
             if (phone.matches("\\d{10,12}")) {
                 session.setMobilePhone(phone);
-                if ("deposit".equals(session.getMobileTransactionType())) {
-                    session.setState(UssdSession.State.ENTER_MOBILE_AMOUNT);
-                    return "CON Enter Amount";
-                } else if ("withdraw".equals(session.getMobileTransactionType())) {
-                    session.setState(UssdSession.State.ENTER_WITHDRAW_AMOUNT);
-                    return "CON Enter Amount";
+
+                // Validate the mobile account
+                MobileMoneyValidationRequest validationRequest = new MobileMoneyValidationRequest();
+                validationRequest.setApiKey(apiKey);
+                validationRequest.setPhoneNo(phone);
+                MobileMoneyValidationResponse validationResponse = mobileMoneyValidationApi.validateMobileAccount(validationRequest);
+
+                if ("00".equals(validationResponse.getStatus())) {
+                    session.setAccountName(validationResponse.getAccountName());
+                    if ("deposit".equals(session.getMobileTransactionType())) {
+                        session.setState(UssdSession.State.ENTER_MOBILE_AMOUNT);
+                        return "CON Enter Amount";
+                    } else if ("withdraw".equals(session.getMobileTransactionType())) {
+                        session.setState(UssdSession.State.ENTER_WITHDRAW_AMOUNT);
+                        return "CON Enter Amount";
+                    }
+                } else {
+                    return "END Invalid account. Status: " + validationResponse.getStatus();
                 }
             }
             return "END Invalid phone number. Session ended.";
@@ -59,8 +72,8 @@ public class MobileMoneyService {
                 session.setAmount(amount);
                 session.setState(UssdSession.State.CONFIRM_MOBILE);
                 return String.format(
-                        "CON Confirm Mobile Money Deposit\nPhone: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
-                        session.getMobilePhone(), amount
+                        "CON Confirm Mobile Money Deposit\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
+                        session.getMobilePhone(), session.getAccountName(), amount
                 );
             } catch (NumberFormatException e) {
                 return "END Invalid amount. Session ended.";
@@ -100,7 +113,7 @@ public class MobileMoneyService {
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
                             "END Mobile Money Deposit successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01 // Placeholder balance
+                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
                     );
                 } else if ("104".equals(responseDto.getStatus())) {
                     return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
@@ -119,8 +132,8 @@ public class MobileMoneyService {
                 session.setAmount(amount);
                 session.setState(UssdSession.State.CONFIRM_WITHDRAW);
                 return String.format(
-                        "CON Confirm Mobile Money Withdrawal\nPhone: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
-                        session.getMobilePhone(), amount
+                        "CON Confirm Mobile Money Withdrawal\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
+                        session.getMobilePhone(), session.getAccountName(), amount
                 );
             } catch (NumberFormatException e) {
                 return "END Invalid amount. Session ended.";
@@ -160,7 +173,7 @@ public class MobileMoneyService {
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
                             "END Mobile Money Withdrawal successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01 // Placeholder balance
+                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
                     );
                 } else if ("104".equals(responseDto.getStatus())) {
                     return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";

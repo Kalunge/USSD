@@ -1,7 +1,6 @@
 package com.ussd.usddapp.dto;
 
-
-import lombok.Data;
+import lombok.*;
 
 @Data
 public class MobileMoneyResponse {

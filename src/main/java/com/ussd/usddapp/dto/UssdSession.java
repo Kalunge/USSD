@@ -18,4 +18,5 @@ public class UssdSession {
     private AccountValidationResponse accountValidationResponse;
     private String mobilePhone;
     private String mobileTransactionType;
+    private String accountName;
 }

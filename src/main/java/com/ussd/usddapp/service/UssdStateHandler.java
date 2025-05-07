@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class UssdStateHandler {
 
     private final BankSelectionService bankSelectionService;
@@ -61,7 +61,7 @@ public class UssdStateHandler {
                 break;
 
             case ENTER_PHONE:
-                response = mobileMoneyService.handlePhoneEntry(session, inputParts);
+                response = mobileMoneyService.handlePhoneEntry(session, inputParts, apiKey);
                 break;
 
             case ENTER_MOBILE_AMOUNT:
