@@ -23,11 +23,11 @@ public class MobileMoneyService {
             if ("1".equals(choice)) {
                 session.setMobileTransactionType("deposit");
                 session.setState(UssdSession.State.SELECT_TELCO);
-                return "CON Select Telco:\n1. Airtel\n2. Telcom";
+                return "CON Select Telco:\n1. Airtel\n2. Telkom";
             } else if ("2".equals(choice)) {
                 session.setMobileTransactionType("withdraw");
                 session.setState(UssdSession.State.SELECT_TELCO);
-                return "CON Select Telco:\n1. Airtel\n2. Telcom";
+                return "CON Select Telco:\n1. Airtel\n2. Telkom";
             }
             return "END Invalid option. Session ended.";
         }
@@ -40,14 +40,14 @@ public class MobileMoneyService {
             if ("1".equals(choice)) {
                 session.setTelco("AIRTEL");
             } else if ("2".equals(choice)) {
-                session.setTelco("TELCOM");
+                session.setTelco("TELKOM");
             } else {
                 return "END Invalid telco option. Session ended.";
             }
             session.setState(UssdSession.State.ENTER_PHONE);
             return "CON Enter Phone Number";
         }
-        return "CON Select Telco:\n1. Airtel\n2. Telcom";
+        return "CON Select Telco:\n1. Airtel\n2. Telkom";
     }
 
     public String handlePhoneEntry(UssdSession session, String[] inputParts, String apiKey) throws IOException {
