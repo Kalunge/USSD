@@ -14,11 +14,21 @@ public class TransactionService {
     private final AccountValidationApi accountValidationApi;
 
     public String handleMenu(UssdSession session, String[] inputParts) {
-        if (inputParts.length > 1 && "1".equals(inputParts[1])) {
-            session.setState(UssdSession.State.ENTER_ACCOUNT);
-            return "CON Enter Account Number";
+        if (inputParts.length == 1) {
+            // Initial menu display after bank selection
+            return "CON Bank Selected: " + session.getBank() + "\n1. Deposit Money\n2. Mobile Money";
+        } else if (inputParts.length > 1) {
+            String choice = inputParts[inputParts.length - 1];
+            if ("1".equals(choice)) {
+                session.setState(UssdSession.State.ENTER_ACCOUNT);
+                return "CON Enter Account Number";
+            } else if ("2".equals(choice)) {
+                session.setState(UssdSession.State.SELECT_MOBILE_MONEY_OPTION);
+                return "CON Mobile Money Options:\n1. Deposit\n2. Withdraw";
+            }
+            return "END Invalid option. Session ended.";
         }
-        return "END Invalid option. Session ended.";
+        return "END Invalid state. Session ended.";
     }
 
     public String handleAccountEntry(UssdSession session, String[] inputParts, String apiKey) throws IOException {

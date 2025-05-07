@@ -14,6 +14,7 @@ public class UssdStateHandler {
     private final TransactionService transactionService;
     private final ValidationService validationService;
     private final DepositService depositService;
+    private final MobileMoneyService mobileMoneyService;
 
     private static final String[] BANKS = {"KCB", "ABSA", "COOP"};
 
@@ -50,6 +51,38 @@ public class UssdStateHandler {
 
             case ENTER_PIN:
                 response = depositService.handlePinEntry(session, inputParts, apiKey);
+                break;
+
+            case SELECT_MOBILE_MONEY_OPTION:
+                response = mobileMoneyService.handleMobileMoneyOption(session, inputParts);
+                break;
+
+            case ENTER_PHONE:
+                response = mobileMoneyService.handlePhoneEntry(session, inputParts);
+                break;
+
+            case ENTER_MOBILE_AMOUNT:
+                response = mobileMoneyService.handleMobileAmountEntry(session, inputParts);
+                break;
+
+            case CONFIRM_MOBILE:
+                response = mobileMoneyService.handleMobileConfirmation(session, inputParts);
+                break;
+
+            case ENTER_MOBILE_PIN:
+                response = mobileMoneyService.handleMobilePinEntry(session, inputParts, apiKey);
+                break;
+
+            case ENTER_WITHDRAW_AMOUNT:
+                response = mobileMoneyService.handleWithdrawAmountEntry(session, inputParts);
+                break;
+
+            case CONFIRM_WITHDRAW:
+                response = mobileMoneyService.handleWithdrawConfirmation(session, inputParts);
+                break;
+
+            case ENTER_WITHDRAW_PIN:
+                response = mobileMoneyService.handleWithdrawPinEntry(session, inputParts, apiKey);
                 break;
 
             default:
