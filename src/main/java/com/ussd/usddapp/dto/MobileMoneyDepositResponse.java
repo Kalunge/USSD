@@ -3,7 +3,7 @@ package com.ussd.usddapp.dto;
 import lombok.*;
 
 @Data
-public class MobileMoneyResponse {
+public class MobileMoneyDepositResponse {
     private String tnxCode;
     private String agentName;
     private String date;

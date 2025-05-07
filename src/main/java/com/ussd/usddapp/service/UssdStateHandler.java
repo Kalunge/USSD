@@ -60,6 +60,9 @@ public class UssdStateHandler {
                 response = mobileMoneyService.handleMobileMoneyOption(session, inputParts);
                 break;
 
+            case SELECT_TELCO:
+                return mobileMoneyService.handleTelcoSelection(session, inputParts);
+
             case ENTER_PHONE:
                 response = mobileMoneyService.handlePhoneEntry(session, inputParts, apiKey);
                 break;

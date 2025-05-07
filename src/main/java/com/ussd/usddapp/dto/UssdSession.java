@@ -7,7 +7,7 @@ public class UssdSession {
     public enum State {
         INIT, SELECT_BANK, MENU, ENTER_ACCOUNT, ENTER_AMOUNT, CONFIRM_ACCOUNT, ENTER_PIN,
         SELECT_MOBILE_MONEY_OPTION, ENTER_PHONE, ENTER_MOBILE_AMOUNT, CONFIRM_MOBILE, ENTER_MOBILE_PIN,
-        ENTER_WITHDRAW_AMOUNT, CONFIRM_WITHDRAW, ENTER_WITHDRAW_PIN
+        ENTER_WITHDRAW_AMOUNT, CONFIRM_WITHDRAW, ENTER_WITHDRAW_PIN, SELECT_TELCO
     }
 
     private State state = State.INIT;
@@ -19,4 +19,5 @@ public class UssdSession {
     private String mobilePhone;
     private String mobileTransactionType;
     private String accountName;
+    private String telco;
 }

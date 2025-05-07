@@ -3,7 +3,7 @@ package com.ussd.usddapp.dto;
 import lombok.Data;
 
 @Data
-public class MobileMoneyRequest {
+public class MobileMoneyDepositRequest {
     private String terminalUserID = "8888";
     private String terminalID = "BKN52191100305";
     private String version = "1.1.12";

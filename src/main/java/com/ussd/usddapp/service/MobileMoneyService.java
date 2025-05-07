@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ussd.usddapp.dto.*;
 import com.ussd.usddapp.request.*;
 import lombok.*;
-import lombok.extern.slf4j.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -16,23 +15,39 @@ public class MobileMoneyService {
 
     private final MobileMoneyApi mobileMoneyApi;
     private final MobileMoneyValidationApi mobileMoneyValidationApi;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public String handleMobileMoneyOption(UssdSession session, String[] inputParts) {
         if (inputParts.length > 1) {
             String choice = inputParts[inputParts.length - 1];
             if ("1".equals(choice)) {
                 session.setMobileTransactionType("deposit");
-                session.setState(UssdSession.State.ENTER_PHONE);
-                return "CON Enter Phone Number";
+                session.setState(UssdSession.State.SELECT_TELCO);
+                return "CON Select Telco:\n1. Airtel\n2. Telcom";
             } else if ("2".equals(choice)) {
                 session.setMobileTransactionType("withdraw");
-                session.setState(UssdSession.State.ENTER_PHONE);
-                return "CON Enter Phone Number";
+                session.setState(UssdSession.State.SELECT_TELCO);
+                return "CON Select Telco:\n1. Airtel\n2. Telcom";
             }
             return "END Invalid option. Session ended.";
         }
         return "CON Mobile Money Options:\n1. Deposit\n2. Withdraw";
+    }
+
+    public String handleTelcoSelection(UssdSession session, String[] inputParts) {
+        if (inputParts.length > 1) {
+            String choice = inputParts[inputParts.length - 1];
+            if ("1".equals(choice)) {
+                session.setTelco("AIRTEL");
+            } else if ("2".equals(choice)) {
+                session.setTelco("TELCOM");
+            } else {
+                return "END Invalid telco option. Session ended.";
+            }
+            session.setState(UssdSession.State.ENTER_PHONE);
+            return "CON Enter Phone Number";
+        }
+        return "CON Select Telco:\n1. Airtel\n2. Telcom";
     }
 
     public String handlePhoneEntry(UssdSession session, String[] inputParts, String apiKey) throws IOException {
@@ -41,7 +56,6 @@ public class MobileMoneyService {
             if (phone.matches("\\d{10,12}")) {
                 session.setMobilePhone(phone);
 
-                // Validate the mobile account
                 MobileMoneyValidationRequest validationRequest = new MobileMoneyValidationRequest();
                 validationRequest.setApiKey(apiKey);
                 validationRequest.setPhoneNo(phone);
@@ -72,8 +86,8 @@ public class MobileMoneyService {
                 session.setAmount(amount);
                 session.setState(UssdSession.State.CONFIRM_MOBILE);
                 return String.format(
-                        "CON Confirm Mobile Money Deposit\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
-                        session.getMobilePhone(), session.getAccountName(), amount
+                        "CON Confirm Mobile Money Deposit\nTelco: %s\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
+                        session.getTelco(), session.getMobilePhone(), session.getAccountName(), amount
                 );
             } catch (NumberFormatException e) {
                 return "END Invalid amount. Session ended.";
@@ -101,19 +115,19 @@ public class MobileMoneyService {
             if (pin.matches("\\d{4}")) {
                 session.setPin(pin);
 
-                MobileMoneyRequest requestDto = new MobileMoneyRequest();
+                MobileMoneyDepositRequest requestDto = new MobileMoneyDepositRequest();
                 requestDto.setApiKey(apiKey);
                 requestDto.setPhoneNo(session.getMobilePhone());
                 requestDto.setAmount(session.getAmount());
-                requestDto.setProviderId("AIRTEL");
+                requestDto.setProviderId(session.getTelco());
                 requestDto.setOtp("");
                 requestDto.setType("hustler_cash_withdrawal");
 
-                MobileMoneyResponse responseDto = mobileMoneyApi.performMobileMoneyOperation(requestDto);
+                MobileMoneyDepositResponse responseDto = mobileMoneyApi.performMobileMoneyDeposit(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
-                            "END Mobile Money Deposit successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
+                            "END Mobile Money Deposit successful.\nTelco: %s\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
+                            session.getTelco(), responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
                     );
                 } else if ("104".equals(responseDto.getStatus())) {
                     return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
@@ -132,8 +146,8 @@ public class MobileMoneyService {
                 session.setAmount(amount);
                 session.setState(UssdSession.State.CONFIRM_WITHDRAW);
                 return String.format(
-                        "CON Confirm Mobile Money Withdrawal\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
-                        session.getMobilePhone(), session.getAccountName(), amount
+                        "CON Confirm Mobile Money Withdrawal\nTelco: %s\nPhone: %s\nAccount Name: %s\nAmount: %.2f\n1. Confirm\n2. Cancel",
+                        session.getTelco(), session.getMobilePhone(), session.getAccountName(), amount
                 );
             } catch (NumberFormatException e) {
                 return "END Invalid amount. Session ended.";
@@ -161,19 +175,23 @@ public class MobileMoneyService {
             if (pin.matches("\\d{4}")) {
                 session.setPin(pin);
 
-                MobileMoneyRequest requestDto = new MobileMoneyRequest();
+                MobileMoneyWithdrawalRequest requestDto = new MobileMoneyWithdrawalRequest();
                 requestDto.setApiKey(apiKey);
                 requestDto.setPhoneNo(session.getMobilePhone());
                 requestDto.setAmount(session.getAmount());
-                requestDto.setProviderId("AIRTEL");
-                requestDto.setOtp("");
-                requestDto.setType("hustler_cash_withdrawal");
+                requestDto.setProviderId(session.getTelco());
+                requestDto.setDepositorPhoneNo(session.getMobilePhone());
+                requestDto.setDepositorName(session.getAccountName());
+                requestDto.setCustomerName(session.getAccountName());
+                requestDto.setReqID(System.currentTimeMillis() / 1000);
+                requestDto.setRequestTime(System.currentTimeMillis());
+                requestDto.setType("hustler_cash_deposit");
 
-                MobileMoneyResponse responseDto = mobileMoneyApi.performMobileMoneyOperation(requestDto);
+                MobileMoneyWithdrawalResponse responseDto = mobileMoneyApi.performMobileMoneyWithdrawal(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
-                            "END Mobile Money Withdrawal successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
+                            "END Mobile Money Withdrawal successful.\nTelco: %s\nTnxCode: %s\nAccount: %s\nName: %s\nBalance: %.2f",
+                            session.getTelco(), responseDto.getTnxCode(), responseDto.getAccount(), responseDto.getName(), session.getAmount() - 0.01
                     );
                 } else if ("104".equals(responseDto.getStatus())) {
                     return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
