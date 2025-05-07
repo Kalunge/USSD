@@ -2,12 +2,14 @@ package com.ussd.usddapp.service;
 
 import com.ussd.usddapp.dto.*;
 import lombok.*;
+import lombok.extern.slf4j.*;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class UssdStateHandler {
 
     private final BankSelectionService bankSelectionService;
@@ -19,12 +21,13 @@ public class UssdStateHandler {
     private static final String[] BANKS = {"KCB", "ABSA", "COOP"};
 
     public String handleState(UssdSession session, String[] inputParts, String apiKey) throws IOException {
+        log.debug("Handling state: {}, inputParts: {}", session.getState(), String.join(",", inputParts));
         String userInput = inputParts.length > 0 ? inputParts[inputParts.length - 1] : "";
         String response;
 
         switch (session.getState()) {
             case INIT:
-                response = "CON Welcome to Agency Banking\nSelect Bank:\n" +
+                response = "CON Welcome to Deposit Service\nSelect Bank:\n" +
                         "1. KCB\n2. ABSA\n3. COOP";
                 session.setState(UssdSession.State.SELECT_BANK);
                 break;

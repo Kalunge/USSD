@@ -9,12 +9,11 @@ public class MobileMoneyRequest {
     private String version = "1.1.12";
     private String countryID = "1";
     private String terminalUser = "brian";
-    private String apiKey;
-    private String type;
-    private String account = "1135101116";
-    private String studentRef = "ss001";
-    private String studentName = "CHEPTOO KAREN";
     private String phoneNo;
-    private String billAmount;
-    private String amount;
+    private double amount;
+    private String providerId;
+    private String location = "";
+    private String otp = "";
+    private String type = "hustler_cash_withdrawal";
+    private String apiKey;
 }

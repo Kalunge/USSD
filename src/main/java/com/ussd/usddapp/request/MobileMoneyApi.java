@@ -21,10 +21,9 @@ public class MobileMoneyApi {
     @Value("${api.url}")
     private String apiUrl;
 
-
     public MobileMoneyResponse performMobileMoneyOperation(MobileMoneyRequest request) throws IOException {
         log.info("Sending mobile money request - type: {}, phoneNo: {}, amount: {}",
-                request.getType(), request.getPhoneNo(), request.getBillAmount());
+                request.getType(), request.getPhoneNo(), request.getAmount());
 
         OkHttpClient client = OkHttpClientCertUtil.createUnsafeOkHttpClient();
         String json = objectMapper.writeValueAsString(request);
@@ -36,13 +35,19 @@ public class MobileMoneyApi {
                 .build();
 
         try (Response response = client.newCall(httpRequest).execute()) {
+            if (response.body() == null) {
+                log.error("Mobile money operation failed: Empty response body");
+                throw new IOException("Empty response body");
+            }
+
+            String responseBody = response.body().string();
+            log.info("Responses: {}", responseBody);
+
             if (!response.isSuccessful()) {
                 log.error("Mobile money operation failed: HTTP {}", response.code());
                 throw new IOException("Unexpected code " + response.code());
             }
 
-            String responseBody = response.body().string();
-            log.debug("Mobile money response: {}", responseBody);
             return objectMapper.readValue(responseBody, MobileMoneyResponse.class);
         }
     }

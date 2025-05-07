@@ -1,12 +1,15 @@
 package com.ussd.usddapp.service;
 
 import com.ussd.usddapp.dto.*;
+import lombok.*;
 import org.springframework.stereotype.*;
 
 @Service
+@RequiredArgsConstructor
 public class BankSelectionService {
 
     private static final String[] BANKS = {"KCB", "ABSA", "COOP"};
+    private final TransactionService transactionService;
 
     public String handleBankSelection(UssdSession session, String[] inputParts) {
         if (inputParts.length > 0) {
@@ -17,7 +20,7 @@ public class BankSelectionService {
                 if (bankIndex >= 0 && bankIndex < BANKS.length) {
                     session.setBank(BANKS[bankIndex]);
                     session.setState(UssdSession.State.MENU);
-                    return "CON Bank Selected: " + session.getBank() + "\n1. Deposit Money";
+                    return transactionService.handleMenu(session, inputParts);
                 }
             } catch (NumberFormatException e) {
                 return "END Invalid input. Session ended.";

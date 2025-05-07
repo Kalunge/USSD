@@ -9,10 +9,12 @@ public class MobileMoneyResponse {
     private String agentName;
     private String date;
     private String status;
+    private String account;
     private String agentId;
     private String location;
     private String shopName;
-    private int customerCharge;
-    private double balance;
+    private String bankCode;
+    private String accountNo;
+    private String accName;
     private String message;
 }

@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ussd.usddapp.dto.*;
 import com.ussd.usddapp.request.*;
 import lombok.*;
+import lombok.extern.slf4j.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MobileMoneyService {
 
     private final MobileMoneyApi mobileMoneyApi;
@@ -88,16 +90,20 @@ public class MobileMoneyService {
 
                 MobileMoneyRequest requestDto = new MobileMoneyRequest();
                 requestDto.setApiKey(apiKey);
-                requestDto.setType("lipa_karo_notification");
                 requestDto.setPhoneNo(session.getMobilePhone());
-                requestDto.setBillAmount(String.format("%.2f", session.getAmount()));
+                requestDto.setAmount(session.getAmount());
+                requestDto.setProviderId("AIRTEL");
+                requestDto.setOtp("");
+                requestDto.setType("hustler_cash_withdrawal");
 
                 MobileMoneyResponse responseDto = mobileMoneyApi.performMobileMoneyOperation(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
-                            "END Mobile Money Deposit successful.\nTnxCode: %s\nAgent: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAgentName(), responseDto.getBalance()
+                            "END Mobile Money Deposit successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
+                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01 // Placeholder balance
                     );
+                } else if ("104".equals(responseDto.getStatus())) {
+                    return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
                 }
                 return "END Mobile Money Deposit failed. Status: " + responseDto.getStatus();
             }
@@ -144,16 +150,20 @@ public class MobileMoneyService {
 
                 MobileMoneyRequest requestDto = new MobileMoneyRequest();
                 requestDto.setApiKey(apiKey);
-                requestDto.setType("withdraw_notification");
                 requestDto.setPhoneNo(session.getMobilePhone());
-                requestDto.setBillAmount(String.format("%.2f", session.getAmount()));
+                requestDto.setAmount(session.getAmount());
+                requestDto.setProviderId("AIRTEL");
+                requestDto.setOtp("");
+                requestDto.setType("hustler_cash_withdrawal");
 
                 MobileMoneyResponse responseDto = mobileMoneyApi.performMobileMoneyOperation(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
                     return String.format(
-                            "END Mobile Money Withdrawal successful.\nTnxCode: %s\nAgent: %s\nBalance: %.2f",
-                            responseDto.getTnxCode(), responseDto.getAgentName(), responseDto.getBalance()
+                            "END Mobile Money Withdrawal successful.\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
+                            responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01 // Placeholder balance
                     );
+                } else if ("104".equals(responseDto.getStatus())) {
+                    return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
                 }
                 return "END Mobile Money Withdrawal failed. Status: " + responseDto.getStatus();
             }
