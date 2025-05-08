@@ -3,11 +3,14 @@ package com.ussd.usddapp.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ussd.usddapp.dto.*;
+import com.ussd.usddapp.repository.*;
 import com.ussd.usddapp.request.*;
 import lombok.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.*;
+import java.time.format.*;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +19,7 @@ public class MobileMoneyService {
     private final MobileMoneyApi mobileMoneyApi;
     private final MobileMoneyValidationApi mobileMoneyValidationApi;
     private final ObjectMapper objectMapper;
+    private final TransactionRepository transactionRepository;
 
     public String handleMobileMoneyOption(UssdSession session, String[] inputParts) {
         if (inputParts.length > 1) {
@@ -125,6 +129,20 @@ public class MobileMoneyService {
 
                 MobileMoneyDepositResponse responseDto = mobileMoneyApi.performMobileMoneyDeposit(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
+
+                    Transaction transaction = new Transaction();
+                    transaction.setTransactionDate(responseDto.getDate() != null ?
+                            LocalDateTime.parse(responseDto.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) :
+                            LocalDateTime.now());
+                    transaction.setDepositorName(session.getAccountName() != null ? session.getAccountName() : "Unknown");
+                    //TODO add prompt for depositor Id transaction.setDepositorId(session.getDepositorId() != null ? session.getDepositorId() : "N/A");
+                    transaction.setTransactionType("deposit");
+                    transaction.setAmount(session.getAmount());
+                    transaction.setMobileNumber(session.getMobilePhone());
+                    transaction.setTransactionNumber(responseDto.getTnxCode());
+                    transaction.setSigned(true);
+                    transactionRepository.save(transaction);
+
                     return String.format(
                             "END Mobile Money Deposit successful.\nTelco: %s\nTnxCode: %s\nAccount: %s\nAccount Name: %s\nBalance: %.2f",
                             session.getTelco(), responseDto.getTnxCode(), responseDto.getAccountNo(), responseDto.getAccName(), session.getAmount() - 0.01
@@ -189,6 +207,20 @@ public class MobileMoneyService {
 
                 MobileMoneyWithdrawalResponse responseDto = mobileMoneyApi.performMobileMoneyWithdrawal(requestDto);
                 if ("0".equals(responseDto.getStatus())) {
+
+                    Transaction transaction = new Transaction();
+                    transaction.setTransactionDate(responseDto.getDate() != null ?
+                            LocalDateTime.parse(responseDto.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) :
+                            LocalDateTime.now());
+                    transaction.setDepositorName(session.getAccountName() != null ? session.getAccountName() : "Unknown");
+                    // TODO prompt for depositor Id
+                    //transaction.setDepositorId(session.getDepositorId() != null ? session.getDepositorId() : "N/A");
+                    transaction.setTransactionType("withdraw");
+                    transaction.setAmount(session.getAmount());
+                    transaction.setMobileNumber(session.getMobilePhone());
+                    transaction.setTransactionNumber(responseDto.getTnxCode());
+                    transaction.setSigned(true);
+                    transactionRepository.save(transaction);
                     return String.format(
                             "END Mobile Money Withdrawal successful.\nTelco: %s\nTnxCode: %s\nAccount: %s\nName: %s\nBalance: %.2f",
                             session.getTelco(), responseDto.getTnxCode(), responseDto.getAccount(), responseDto.getName(), session.getAmount() - 0.01

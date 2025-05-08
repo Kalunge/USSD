@@ -1,7 +1,8 @@
 package com.ussd.usddapp.dto;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -12,16 +13,13 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private LocalDateTime transactionDate;
+    private String depositorName;
+    private String depositorId;
+    private String transactionType;
+    private double amount;
+    private String mobileNumber;
+    private String transactionNumber;
+    private boolean isSigned;
 
-    @Column(nullable = false)
-    private Double amount;
-
-    @Column(nullable = false)
-    private String recipientPhone;
-
-    @Column(nullable = false)
-    private LocalDateTime timestamp = LocalDateTime.now();
 }
