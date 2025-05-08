@@ -1,6 +1,7 @@
 package com.ussd.usddapp.service;
 
 import com.ussd.usddapp.dto.*;
+import com.ussd.usddapp.service.modules.*;
 import lombok.*;
 import lombok.extern.slf4j.*;
 import org.springframework.stereotype.Component;
@@ -16,7 +17,8 @@ public class UssdStateHandler {
     private final TransactionService transactionService;
     private final ValidationService validationService;
     private final DepositService depositService;
-    private final MobileMoneyService mobileMoneyService;
+    private final MobileMoneyTransactionService mobileMoneyTransactionService;
+    private final LipaKaroService lipaKaroService;
 
     private static final String[] BANKS = {"KCB", "ABSA", "COOP"};
 
@@ -27,8 +29,7 @@ public class UssdStateHandler {
 
         switch (session.getState()) {
             case INIT:
-                response = "CON Welcome to Agency Banking\nSelect Bank:\n" +
-                        "1. KCB";
+                response = "CON Welcome to Agency Banking\nSelect Bank:\n1. KCB";
                 session.setState(UssdSession.State.SELECT_BANK);
                 break;
 
@@ -57,41 +58,73 @@ public class UssdStateHandler {
                 break;
 
             case SELECT_MOBILE_MONEY_OPTION:
-                response = mobileMoneyService.handleMobileMoneyOption(session, inputParts);
+                response = mobileMoneyTransactionService.handleMobileMoneyOption(session, inputParts);
                 break;
 
             case SELECT_TELCO:
-                return mobileMoneyService.handleTelcoSelection(session, inputParts);
+                response = mobileMoneyTransactionService.handleTelcoSelection(session, inputParts);
+                break;
 
             case ENTER_PHONE:
-                response = mobileMoneyService.handlePhoneEntry(session, inputParts, apiKey);
+                response = mobileMoneyTransactionService.handlePhoneEntry(session, inputParts, apiKey);
                 break;
 
             case ENTER_MOBILE_AMOUNT:
-                response = mobileMoneyService.handleMobileAmountEntry(session, inputParts);
+                log.info("Calling handleMobileAmountEntry or handleLipaKaroAmountEntry");
+                if ("lipa_karo".equals(session.getTransactionType())) {
+                    response = lipaKaroService.handleLipaKaroAmountEntry(session, inputParts);
+                } else {
+                    response = mobileMoneyTransactionService.handleMobileAmountEntry(session, inputParts);
+                }
                 break;
 
             case CONFIRM_MOBILE:
-                response = mobileMoneyService.handleMobileConfirmation(session, inputParts);
+                response = mobileMoneyTransactionService.handleMobileConfirmation(session, inputParts);
                 break;
 
             case ENTER_MOBILE_PIN:
-                response = mobileMoneyService.handleMobilePinEntry(session, inputParts, apiKey);
+                log.info("Calling handleMobilePinEntry or handleLipaKaroPinEntry");
+                if ("lipa_karo".equals(session.getTransactionType())) {
+                    response = lipaKaroService.handleLipaKaroPinEntry(session, inputParts, apiKey);
+                } else {
+                    response = mobileMoneyTransactionService.handleMobilePinEntry(session, inputParts, apiKey);
+                }
                 break;
 
             case ENTER_WITHDRAW_AMOUNT:
-                response = mobileMoneyService.handleWithdrawAmountEntry(session, inputParts);
+                response = mobileMoneyTransactionService.handleWithdrawAmountEntry(session, inputParts);
                 break;
 
             case CONFIRM_WITHDRAW:
-                response = mobileMoneyService.handleWithdrawConfirmation(session, inputParts);
+                response = mobileMoneyTransactionService.handleWithdrawConfirmation(session, inputParts);
                 break;
 
             case ENTER_WITHDRAW_PIN:
-                response = mobileMoneyService.handleWithdrawPinEntry(session, inputParts, apiKey);
+                response = mobileMoneyTransactionService.handleWithdrawPinEntry(session, inputParts, apiKey);
+                break;
+
+            case SELECT_LIPA_KARO:
+                response = lipaKaroService.handleLipaKaroSelection(session, inputParts);
+                break;
+
+            case ENTER_RECIPIENT_ACCOUNT:
+                response = lipaKaroService.handleRecipientAccountEntry(session, inputParts);
+                break;
+
+            case ENTER_ADMISSION_NUMBER:
+                response = lipaKaroService.handleAdmissionNumberEntry(session, inputParts);
+                break;
+
+            case ENTER_DEPOSITED_BY:
+                response = lipaKaroService.handleDepositedByEntry(session, inputParts);
+                break;
+
+            case CONFIRM_LIPA_KARO:
+                response = lipaKaroService.handleLipaKaroConfirmation(session, inputParts);
                 break;
 
             default:
+                log.error("Invalid state encountered: {}. Session ID: {}, Input: {}", session.getState(), java.util.Arrays.toString(inputParts));
                 response = "END Invalid state. Session ended.";
                 session.setState(UssdSession.State.INIT);
                 break;
