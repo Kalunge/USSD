@@ -2,6 +2,7 @@ package com.ussd.usddapp.service.modules;
 
 import com.fasterxml.jackson.databind.*;
 import com.ussd.usddapp.dto.*;
+import com.ussd.usddapp.dto.lipakaro.*;
 import com.ussd.usddapp.repository.*;
 import com.ussd.usddapp.request.*;
 import lombok.*;
@@ -19,6 +20,7 @@ public class LipaKaroService {
     private final MobileMoneyValidationApi mobileMoneyValidationApi;
     private final ObjectMapper objectMapper;
     private final TransactionRepository transactionRepository;
+    private final LipaKaroApi lipaKaroApi;
 
     public String handleLipaKaroSelection(UssdSession session, String[] inputParts) {
         if (inputParts.length > 1) {
@@ -108,16 +110,22 @@ public class LipaKaroService {
             if (pin.matches("\\d{4}")) {
                 session.setPin(pin);
 
-                // Assuming Lipa Karo uses a similar API call to Mobile Money Deposit
-                MobileMoneyDepositRequest requestDto = new MobileMoneyDepositRequest();
-                requestDto.setApiKey(apiKey);
-                requestDto.setPhoneNo(session.getMobilePhone() != null ? session.getMobilePhone() : "N/A");
-                requestDto.setAmount(session.getAmount());
-                requestDto.setProviderId("LIPA_KARO");
-                requestDto.setOtp("");
-                requestDto.setType("lipa_karo_payment");
+                LipaKaroRequest request = new LipaKaroRequest();
+                request.setTerminalUserID("8888");
+                request.setTerminalID("BKN52191100305");
+                request.setVersion("1.1.12");
+                request.setCountryID("1");
+                request.setTerminalUser("brian");
+                request.setApiKey(apiKey);
+                request.setType("lipa_karo_notification");
+                request.setAccount(session.getRecipientAccount());
+                request.setStudentRef(session.getAdmissionNumber());
+                request.setStudentName(session.getDepositedBy());
+                request.setPhoneNo(session.getMobilePhone() != null ? session.getMobilePhone() : "254700000000"); // Fallback value
+                request.setBillAmount(String.valueOf(session.getAmount()));
+                request.setAmount("1"); // Example value, adjust logic if needed
 
-                MobileMoneyDepositResponse responseDto = mobileMoneyApi.performMobileMoneyDeposit(requestDto);
+                LipaKaroResponse responseDto = lipaKaroApi.payFees(request);
                 if ("0".equals(responseDto.getStatus())) {
                     Transaction transaction = new Transaction();
                     transaction.setTransactionDate(responseDto.getDate() != null ?
