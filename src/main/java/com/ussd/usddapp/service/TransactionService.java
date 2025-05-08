@@ -3,32 +3,41 @@ package com.ussd.usddapp.service;
 import com.ussd.usddapp.dto.*;
 import com.ussd.usddapp.request.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.*;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TransactionService {
 
     private final AccountValidationApi accountValidationApi;
 
     public String handleMenu(UssdSession session, String[] inputParts) {
-        if (inputParts.length == 1) {
-            // Initial menu display after bank selection
-            return "CON Bank Selected: " + session.getBank() + "\n1. Deposit Money\n2. Mobile Money";
-        } else if (inputParts.length > 1) {
+        log.info("Processing menu with inputParts: {}", java.util.Arrays.toString(inputParts));
+        if (inputParts.length > 1 && !inputParts[inputParts.length - 1].isEmpty()) {
             String choice = inputParts[inputParts.length - 1];
-            if ("1".equals(choice)) {
-                session.setState(UssdSession.State.ENTER_ACCOUNT);
-                return "CON Enter Account Number";
-            } else if ("2".equals(choice)) {
-                session.setState(UssdSession.State.SELECT_MOBILE_MONEY_OPTION);
-                return "CON Mobile Money Options:\n1. Deposit\n2. Withdraw";
+            switch (choice) {
+                case "1": // Deposit Money
+                    session.setTransactionType("deposit");
+                    session.setState(UssdSession.State.ENTER_AMOUNT);
+                    return "CON Enter Amount";
+                case "2": // Mobile Money
+                    session.setTransactionType("mobile_money");
+                    session.setState(UssdSession.State.SELECT_MOBILE_MONEY_OPTION);
+                    return "CON Mobile Money Options:\n1. Deposit\n2. Withdraw";
+                case "3": // Lipa Karo
+                    session.setTransactionType("lipa_karo");
+                    session.setState(UssdSession.State.SELECT_LIPA_KARO);
+                    return "CON Lipa Karo\n1. Proceed";
+                default:
+                    return "END Invalid option. Session ended.";
             }
-            return "END Invalid option. Session ended.";
         }
-        return "END Invalid state. Session ended.";
+        // Default menu when no valid input is provided
+        return String.format("CON Bank Selected: %s\n1. Deposit Money\n2. Mobile Money\n3. Lipa Karo", session.getBank());
     }
 
     public String handleAccountEntry(UssdSession session, String[] inputParts, String apiKey) throws IOException {
