@@ -16,11 +16,9 @@ import java.time.format.*;
 @RequiredArgsConstructor
 public class LipaKaroService {
 
-    private final MobileMoneyApi mobileMoneyApi;
-    private final MobileMoneyValidationApi mobileMoneyValidationApi;
+    private final LipaKaroApi lipaKaroApi;
     private final ObjectMapper objectMapper;
     private final TransactionRepository transactionRepository;
-    private final LipaKaroApi lipaKaroApi;
 
     public String handleLipaKaroSelection(UssdSession session, String[] inputParts) {
         if (inputParts.length > 1) {
@@ -91,12 +89,45 @@ public class LipaKaroService {
         return "END No amount provided. Session ended.";
     }
 
-    public String handleLipaKaroConfirmation(UssdSession session, String[] inputParts) {
+    public String handleLipaKaroConfirmation(UssdSession session, String[] inputParts, String apiKey) throws IOException {
         if (inputParts.length > 1) {
             String choice = inputParts[inputParts.length - 1];
             if ("1".equals(choice)) {
-                session.setState(UssdSession.State.ENTER_MOBILE_PIN);
-                return "CON Enter 4-digit PIN";
+                // Perform validation before proceeding
+                LipaKaroValidationRequest validationRequest = new LipaKaroValidationRequest();
+                validationRequest.setAppID("39"); // Example value, adjust as needed
+                validationRequest.setType("lipa_karo_validation");
+                validationRequest.setVersion("1.1.16"); // Example value
+                validationRequest.setTerminalID("BKN52191100307"); // Example value
+                validationRequest.setTerminalUser("1111"); // Example value
+                validationRequest.setCountryID("1"); // Example value
+                validationRequest.setApiKey(apiKey);
+                validationRequest.setTerminalUserID("1111"); // Example value
+                validationRequest.setLocation("yaya center nairobi"); // Example value
+                validationRequest.setAccount(session.getRecipientAccount());
+                validationRequest.setStudentRef(session.getAdmissionNumber());
+
+                LipaKaroValidationResponse validationResponse = lipaKaroApi.validateLipaKaroAccount(validationRequest);
+
+                if ("0".equals(validationResponse.getStatus())) {
+                    double billAmount = Double.parseDouble(validationResponse.getBillAmount());
+                    if (session.getAmount() <= billAmount) {
+                        session.setAccountName(validationResponse.getStudentName()); // Store student name
+                        session.setState(UssdSession.State.ENTER_MOBILE_PIN);
+                        return String.format(
+                                "CON Validation Successful\nAccount: %s\nStudent: %s\nSchool: %s\nBill Amount: %.2f\nYour Amount: %.2f\nEnter 4-digit PIN",
+                                validationResponse.getAccount(),
+                                validationResponse.getStudentName(),
+                                validationResponse.getSchoolName(),
+                                billAmount,
+                                session.getAmount()
+                        );
+                    } else {
+                        return "END Amount exceeds bill amount (%.2f). Session ended.";
+                    }
+                } else {
+                    return "END Invalid account or student reference. Status: " + validationResponse.getStatus();
+                }
             } else if ("2".equals(choice)) {
                 return "END Transaction canceled.";
             }
@@ -111,11 +142,11 @@ public class LipaKaroService {
                 session.setPin(pin);
 
                 LipaKaroRequest request = new LipaKaroRequest();
-                request.setTerminalUserID("8888");
-                request.setTerminalID("BKN52191100305");
-                request.setVersion("1.1.12");
-                request.setCountryID("1");
-                request.setTerminalUser("brian");
+                request.setTerminalUserID("8888"); // Example value, adjust as needed
+                request.setTerminalID("BKN52191100305"); // Example value, adjust as needed
+                request.setVersion("1.1.12"); // Example value, adjust as needed
+                request.setCountryID("1"); // Example value, adjust as needed
+                request.setTerminalUser("brian"); // Example value, adjust as needed
                 request.setApiKey(apiKey);
                 request.setType("lipa_karo_notification");
                 request.setAccount(session.getRecipientAccount());
@@ -125,28 +156,28 @@ public class LipaKaroService {
                 request.setBillAmount(String.valueOf(session.getAmount()));
                 request.setAmount("1"); // Example value, adjust logic if needed
 
-                LipaKaroResponse responseDto = lipaKaroApi.payFees(request);
-                if ("0".equals(responseDto.getStatus())) {
+                LipaKaroResponse response = lipaKaroApi.payFees(request);
+                if ("0".equals(response.getStatus())) {
                     Transaction transaction = new Transaction();
-                    transaction.setTransactionDate(responseDto.getDate() != null ?
-                            LocalDateTime.parse(responseDto.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) :
+                    transaction.setTransactionDate(response.getDate() != null ?
+                            LocalDateTime.parse(response.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) :
                             LocalDateTime.now());
                     transaction.setDepositorName(session.getDepositedBy() != null ? session.getDepositedBy() : "Unknown");
                     transaction.setTransactionType("lipa_karo");
                     transaction.setAmount(session.getAmount());
                     transaction.setMobileNumber(session.getMobilePhone() != null ? session.getMobilePhone() : "N/A");
-                    transaction.setTransactionNumber(responseDto.getTnxCode());
+                    transaction.setTransactionNumber(response.getTnxCode());
                     transaction.setSigned(true);
                     transactionRepository.save(transaction);
 
                     return String.format(
                             "END Lipa Karo Payment successful.\nTnxCode: %s\nAccount: %s\nAdmission: %s\nDepositor: %s\nAmount: %.2f",
-                            responseDto.getTnxCode(), session.getRecipientAccount(), session.getAdmissionNumber(), session.getDepositedBy(), session.getAmount()
+                            response.getTnxCode(), session.getRecipientAccount(), session.getAdmissionNumber(), session.getDepositedBy(), response.getBalance()
                     );
-                } else if ("104".equals(responseDto.getStatus())) {
-                    return "END Transaction failed: " + responseDto.getMessage() + "\nPlease contact support.";
+                } else if ("104".equals(response.getStatus())) {
+                    return "END Transaction failed: Please contact support.";
                 }
-                return "END Lipa Karo Payment failed. Status: " + responseDto.getStatus();
+                return "END Lipa Karo Payment failed. Status: " + response.getStatus();
             }
             return "END Invalid PIN. Must be 4 digits. Session ended.";
         }

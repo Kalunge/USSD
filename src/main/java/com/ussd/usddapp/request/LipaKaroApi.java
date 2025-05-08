@@ -44,4 +44,28 @@ public class LipaKaroApi {
             return objectMapper.readValue(responseBody, LipaKaroResponse.class);
         }
     }
+
+    public LipaKaroValidationResponse validateLipaKaroAccount(LipaKaroValidationRequest request) throws IOException {
+        log.info("Sending validation request for account: {}, studentRef: {}", request.getAccount(), request.getStudentRef());
+
+        OkHttpClient client = createUnsafeOkHttpClient();
+        String json = objectMapper.writeValueAsString(request);
+        RequestBody body = RequestBody.create(json, JSON_MEDIA_TYPE);
+        Request httpRequest = new Request.Builder()
+                .url(apiUrl)
+                .post(body)
+                .addHeader("Content-Type", "application/json")
+                .build();
+
+        try (Response response = client.newCall(httpRequest).execute()) {
+            if (!response.isSuccessful()) {
+                log.error("Validation failed: HTTP {}", response.code());
+                throw new IOException("Unexpected code " + response.code());
+            }
+
+            String responseBody = response.body().string();
+            log.info("Lipa Karo validation response: {}", responseBody);
+            return objectMapper.readValue(responseBody, LipaKaroValidationResponse.class);
+        }
+    }
 }

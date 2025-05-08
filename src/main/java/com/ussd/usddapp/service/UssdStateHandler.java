@@ -120,7 +120,7 @@ public class UssdStateHandler {
                 break;
 
             case CONFIRM_LIPA_KARO:
-                response = lipaKaroService.handleLipaKaroConfirmation(session, inputParts);
+                response = lipaKaroService.handleLipaKaroConfirmation(session, inputParts, apiKey);
                 break;
 
             default:
